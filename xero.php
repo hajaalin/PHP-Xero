@@ -14,6 +14,12 @@
 	Thanks for the Oauth* classes provided by Andy Smith, find more about them at http://oauth.googlecode.com/.  The
 	OAuthSignatureMethod_Xero class was written by me, as required by the Oauth classes.  The ArrayToXML classes were sourced from wwwzealdcom's work as shown on the comment dated August 30, 2009 on this page: http://snipplr.com/view/3491/convert-php-array-to-xml-or-simple-xml-object-if-you-wish/  I made a few minor changes to that code to overcome some bugs.
 
+	Class Name: XeroReports
+	Author: Harri Jäälinoja (the code that makes the Xero API calls is copy-pasted from the Xero class)
+	Date: March 2013
+
+	Description:
+	A class for accessing Xero Reports.
 	---
 
 	License (applies to Xero and Oauth* classes):
@@ -44,6 +50,7 @@
 	
 
 */
+
 
 class Xero {
 	const ENDPOINT = 'https://api.xero.com/api.xro/2.0/';
@@ -269,6 +276,81 @@ class Xero {
 }
 
 //END Xero class
+
+class XeroReports extends Xero {
+	
+	public function budget_summary($date, $periods, $timeframe) {
+		$xero_url = self::ENDPOINT . 'Reports/BudgetSummary';
+		$xero_url .= "?date=$date";
+		$xero_url .= "?periods=$periods";
+		$xero_url .= "?timeframe=$timeframe";
+		
+		return request($xero_url);
+	}
+
+	public function profit_and_loss($from_date, $to_date, $tracking_category_id = NULL, $tracking_option_id = NULL) {
+		$xero_url = self::ENDPOINT . 'Reports/ProfitAndLoss';
+		$xero_url .= "?fromDate=$from_date";
+		$xero_url .= "?toDate=$to_date";
+		if (isset($tracking_category_id)) {
+			$xero_url .= "?trackingCategoryID=$tracking_category_id";
+		}
+		if (isset($tracking_option_id)) {
+			$xero_url .= "?trackingOptionID=$tracking_option_id";
+		}
+
+		return request($xero_url);
+	}
+	
+	public function request($xero_url, $modified_after=NULL, $acceptHeader=NULL) {
+
+		$req  = OAuthRequest::from_consumer_and_token( $this->consumer, $this->token, 'GET',$xero_url);
+		$req->sign_request($this->signature_method , $this->consumer, $this->token);
+		$ch = curl_init();
+		if ( $acceptHeader=='pdf' ) {
+			curl_setopt($ch,CURLOPT_HTTPHEADER,
+					array (
+						"Accept: application/".$acceptHeader
+					)
+				);
+			}
+		curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_URL, $req->to_url());
+		if ( isset($modified_after) && $modified_after != false) {
+			curl_setopt($ch, CURLOPT_HTTPHEADER, array("If-Modified-Since: $modified_after"));
+		}
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		$temp_xero_response = curl_exec($ch);
+		curl_close($ch);
+		if ( $acceptHeader=='pdf' ) {
+			return $temp_xero_response;
+			
+		}
+		
+		try {
+		if(@simplexml_load_string( $temp_xero_response )==false){
+			throw new XeroException($temp_xero_response);
+			$xero_xml = false;
+			}else{
+			$xero_xml = simplexml_load_string( $temp_xero_response );
+			}
+			}
+		
+		catch (XeroException $e)
+			  {
+			  return $e->getMessage() . "<br/>";
+			  }
+		
+
+		if ( $this->format == 'xml' && isset($xero_xml) ) {
+			return $xero_xml;
+		} elseif(isset($xero_xml)) {
+			return ArrayToXML::toArray( $xero_xml );
+		}
+	}
+
+}
+
 
 /* Generic exception class
  */
