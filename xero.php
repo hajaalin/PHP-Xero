@@ -55,14 +55,14 @@
 class Xero {
 	const ENDPOINT = 'https://api.xero.com/api.xro/2.0/';
 
-	private $key;
-	private $secret;
-	private $public_cert;
-	private $private_key;
-	private $consumer;
-	private $token;
-	private $signature_method;
-	private $format;
+	protected $key;
+	protected $secret;
+	protected $public_cert;
+	protected $private_key;
+	protected $consumer;
+	protected $token;
+	protected $signature_method;
+	protected $format;
 
 	public function __construct($key = false, $secret = false, $public_cert = false, $private_key = false, $format = 'json') {
 		$this->key = $key;
@@ -112,7 +112,7 @@ class Xero {
 			
 		);
 		if ( !in_array($name,$valid_methods) ) {
-			throw new XeroException('The selected method does not exist. Please use one of the following methods: '.implode(', ',$methods_map));
+			throw new XeroException('The selected method (' . $name . ') does not exist. Please use one of the following methods: '.implode(', ',$methods_map));
 		}
 		if ( (count($arguments) == 0) || ( is_string($arguments[0]) ) || ( is_numeric($arguments[0]) ) || ( $arguments[0] === false ) ) {
 			//it's a GET request
@@ -279,31 +279,45 @@ class Xero {
 
 class XeroReports extends Xero {
 	
+	public function __construct($key = false, $secret = false, $public_cert = false, $private_key = false, $format = 'json') {
+		parent::__construct($key,$secret,$public_cert,$private_key,$format);
+	}
+
+	public function accounts() {
+		$xero_url = self::ENDPOINT . 'Accounts';
+
+		return $this->request($xero_url, NULL, NULL);
+	}
+
 	public function budget_summary($date, $periods, $timeframe) {
 		$xero_url = self::ENDPOINT . 'Reports/BudgetSummary';
 		$xero_url .= "?date=$date";
-		$xero_url .= "?periods=$periods";
-		$xero_url .= "?timeframe=$timeframe";
+		$xero_url .= "&periods=$periods";
+		$xero_url .= "&timeframe=$timeframe";
 		
-		return request($xero_url);
+		return $this->request($xero_url, NULL, NULL);
 	}
 
 	public function profit_and_loss($from_date, $to_date, $tracking_category_id = NULL, $tracking_option_id = NULL) {
 		$xero_url = self::ENDPOINT . 'Reports/ProfitAndLoss';
 		$xero_url .= "?fromDate=$from_date";
-		$xero_url .= "?toDate=$to_date";
+		$xero_url .= "&toDate=$to_date";
 		if (isset($tracking_category_id)) {
-			$xero_url .= "?trackingCategoryID=$tracking_category_id";
+			$xero_url .= "&trackingCategoryID=$tracking_category_id";
 		}
 		if (isset($tracking_option_id)) {
-			$xero_url .= "?trackingOptionID=$tracking_option_id";
+			$xero_url .= "&trackingOptionID=$tracking_option_id";
 		}
 
-		return request($xero_url);
+		return $this->request($xero_url);
 	}
 	
 	public function request($xero_url, $modified_after=NULL, $acceptHeader=NULL) {
-
+	
+		echo '###';
+		echo $xero_url;
+		echo '###';
+		
 		$req  = OAuthRequest::from_consumer_and_token( $this->consumer, $this->token, 'GET',$xero_url);
 		$req->sign_request($this->signature_method , $this->consumer, $this->token);
 		$ch = curl_init();
@@ -334,7 +348,7 @@ class XeroReports extends Xero {
 			}else{
 			$xero_xml = simplexml_load_string( $temp_xero_response );
 			}
-			}
+		}
 		
 		catch (XeroException $e)
 			  {
@@ -343,8 +357,10 @@ class XeroReports extends Xero {
 		
 
 		if ( $this->format == 'xml' && isset($xero_xml) ) {
+			echo '### Return XML ###';
 			return $xero_xml;
 		} elseif(isset($xero_xml)) {
+			echo '### Return XML toArray ###';
 			return ArrayToXML::toArray( $xero_xml );
 		}
 	}
